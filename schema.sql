@@ -1,5 +1,5 @@
-DROP TABLE IF EXISTS weathers;
 DROP TABLE IF EXISTS locaitons;
+DROP TABLE IF EXISTS weathers;
 
 -- search_query: locationName,
 -- formatted_query: result.body.results[0].formatted_address,
