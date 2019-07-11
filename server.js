@@ -15,7 +15,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const client = new pg.Client(DATABASE_URL);
 client.connect();
 client.on('error', error => {
-  console.log(error);
+  
 });
 
 // Globals
@@ -48,12 +48,12 @@ function Location(query, res) {
 function searchToLatLng(request, response) {
   const locationName = request.query.data;
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${locationName}&key=${GEOCODE_API_KEY}`;
-  console.log('right here');
+  
 
   // if is in database get it from DB
   client.query(`SELECT * FROM locations WHERE search_query=$1`, [locationName]).then(sqlResult => {
     if (sqlResult.rowCount === 0) {
-      console.log('getting from Google');
+      
       // else do everything normal
 
       superagent
@@ -76,20 +76,19 @@ function searchToLatLng(request, response) {
           response.send(location);
         })
         .catch(e => {
-          console.error(e);
+          
           response.status(500).send('oops');
         });
     } else {
-      console.log('sending from DB: ');
+      
       response.send(sqlResult.rows[0]);
     }
   });
 }
 
 //Weather Construtor Start
-function Day(dayObj) {
-  this.forecast = dayObj.summary;
-  let time = new Date(dayObj.time * 1000).toDateString();
+function Day(forecast, time) {
+  this.forecast = forecast;
   this.time = time;
 }
 // =============================
@@ -97,15 +96,22 @@ function searchWeather(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  const qryString = `SELECT * FROM weathers`;
+  const qryString = `SELECT * FROM weathers WHERE location_id=${locationName.id}`;
+  
   const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
 
-  checkForExistance(qryString, ifExist, noExistW, locationName, url, response);
+  checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
 }
 
-// does exist
-function ifExist(sqlResult) {
-  res.send(sqlResult.rows[0]);
+// does exist (weather)
+function ifExistW(sqlResult, res) {
+  
+  let weatherArr = [];
+  // 
+  sqlResult.rows.forEach(day => {
+    weatherArr.push(new Day(day.forecast, day.time));
+  });
+  res.send(weatherArr);
 }
 
 // check DB for existance
@@ -114,7 +120,8 @@ function checkForExistance(qryString, doesExist, noExist, locationName, url, res
     if (sqlResult.rowCount === 0) {
       noExist(locationName, url, response);
     } else {
-      doesExist(sqlResult);
+      
+      doesExist(sqlResult, response);
     }
   });
 }
@@ -128,7 +135,7 @@ function noExistW(locationName, url, response) {
       const weatherData = result.body;
       let res = weatherData.daily.data.map(element => {
         let date = new Date(element.time * 1000).toDateString();
-        let tempWeather = new Day(element);
+        let tempWeather = new Day(element.summary, date);
         
         // make table
         client.query(
@@ -146,7 +153,7 @@ function noExistW(locationName, url, response) {
       response.send(res);
     })
     .catch(e => {
-      console.error(e);
+      
       response.status(500).send('oops');
     });
 }
@@ -180,5 +187,5 @@ function handleError(e, res) {
 
 // Start the server.
 app.listen(PORT, () => {
-  console.log(`App is running on port ${PORT}`);
+  
 });
