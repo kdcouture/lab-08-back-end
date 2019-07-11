@@ -19,7 +19,7 @@ client.on('error', error => {
 });
 
 // Globals
-const PORT = process.env.PORT || 3009;
+const PORT = process.env.PORT || 3002;
 
 // Make the server
 const app = express();
