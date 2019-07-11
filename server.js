@@ -15,7 +15,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const client = new pg.Client(DATABASE_URL);
 client.connect();
 client.on('error', error => {
-  console.log(error);
+  
 });
 
 // Globals
@@ -42,18 +42,18 @@ app.use('*', (request, response) => {
 //Location Constructor Start
 function Location(query, res) {
   this.search_query = query;
-  (this.formatted_query = res.body.results[0].formatted_address), (this.latitude = res.body.results[0].geometry.location.lat), (this.longitude = res.body.results[0].geometry.location.lng);
+  (this.formatted_query = res.body.results[0].formatted_address); (this.latitude = res.body.results[0].geometry.location.lat);(this.longitude = res.body.results[0].geometry.location.lng);
 }
 
 function searchToLatLng(request, response) {
   const locationName = request.query.data;
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${locationName}&key=${GEOCODE_API_KEY}`;
-  console.log('right here');
+  
 
   // if is in database get it from DB
   client.query(`SELECT * FROM locations WHERE search_query=$1`, [locationName]).then(sqlResult => {
     if (sqlResult.rowCount === 0) {
-      console.log('getting from Google');
+      
       // else do everything normal
 
       superagent
@@ -76,20 +76,19 @@ function searchToLatLng(request, response) {
           response.send(location);
         })
         .catch(e => {
-          console.error(e);
+          
           response.status(500).send('oops');
         });
     } else {
-      console.log('sending from DB: ');
+      
       response.send(sqlResult.rows[0]);
     }
   });
 }
 
 //Weather Construtor Start
-function Day(dayObj) {
-  this.forecast = dayObj.summary;
-  let time = new Date(dayObj.time * 1000).toDateString();
+function Day(forecast, time) {
+  this.forecast = forecast;
   this.time = time;
 }
 // =============================
@@ -97,15 +96,11 @@ function searchWeather(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  const qryString = `SELECT * FROM weathers`;
+  const qryString = `SELECT * FROM weathers WHERE location_id=${locationName.id}`;
+  
   const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
 
-  checkForExistance(qryString, ifExist, noExistW, locationName, url, response);
-}
-
-// does exist
-function ifExist(sqlResult) {
-  res.send(sqlResult.rows[0]);
+  checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
 }
 
 // check DB for existance
@@ -114,9 +109,21 @@ function checkForExistance(qryString, doesExist, noExist, locationName, url, res
     if (sqlResult.rowCount === 0) {
       noExist(locationName, url, response);
     } else {
-      doesExist(sqlResult);
+      
+      doesExist(sqlResult, response);
     }
   });
+}
+
+// does exist (weather)
+function ifExistW(sqlResult, res) {
+  
+  let weatherArr = [];
+  // 
+  sqlResult.rows.forEach(day => {
+    weatherArr.push(new Day(day.forecast, day.time));
+  });
+  res.send(weatherArr);
 }
 
 // not exists
@@ -128,7 +135,7 @@ function noExistW(locationName, url, response) {
       const weatherData = result.body;
       let res = weatherData.daily.data.map(element => {
         let date = new Date(element.time * 1000).toDateString();
-        let tempWeather = new Day(element);
+        let tempWeather = new Day(element.summary, date);
         
         // make table
         client.query(
@@ -146,31 +153,78 @@ function noExistW(locationName, url, response) {
       response.send(res);
     })
     .catch(e => {
-      console.error(e);
+      
       response.status(500).send('oops');
     });
 }
 
 //EventBrite Constructor Start
-function Event(eventObj) {
-  (this.link = eventObj.url), (this.name = eventObj.name.text), (this.event_date = new Date(eventObj.start.local).toDateString()), (this.summary = eventObj.summary);
+function Event(link, name, time, summary) {
+  (this.link = link), 
+  (this.name = name), 
+  (this.event_date = time),
+  (this.summary = summary)
 }
 
 function getEventRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
+  const locationName = request.query.data;
+  console.log('locationName: ', locationName.id);
+
+  const qStr = `SELECT * FROM events WHERE location_id=${locationName.id}`;
 
   const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${EVENTBRITE_API_KEY}`;
 
-  return superagent
+  checkForExistance(qStr, ifExistE, noExistE, locationName, url, response);
+}
+
+// does exist (weather)
+function ifExistE(sqlResult, res) {
+  
+  let eventArr = [];
+
+  sqlResult.rows.forEach(ele => {
+    return tempEvent = new Event(ele.link, ele.name, ele.event_date, ele.summary);
+  });
+  res.send(eventArr);
+}
+
+// not exists
+function noExistE(locationName, url, response) {
+  superagent
     .get(url)
     .then(result => {
-      const eventSummaries = result.body.events.map(eve => {
-        return new Event(eve);
+      //shape data
+      const eventData = result.body;
+      let res = eventData.map(element => {
+        console.log('------element: ', element);
+        // // Fails
+        // // console.log('element: ', element);
+        // let tempEvent = new Event(element.url, element.name.text, element.start.local, element.summary);
+        // // make table row
+        // console.log('tempEvent: ', tempEvent);
+        // client.query(
+        //   `INSERT INTO events (
+        //   link,
+        //   name,
+        //   event_date,
+        //   summary,
+        //   location_id
+        //   ) VALUES ($1, $2, $3, $4, $5);
+        //   `,
+        //   [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationName.id]
+        //   );
+
+        // return tempEvent;
+        
       });
-      response.send(eventSummaries);
+      response.send(res);
     })
-    .catch(e => handleError(e, response));
+    .catch(e => {
+
+      response.status(500).send('oops');
+    });
 }
 
 //Error handling
@@ -180,5 +234,5 @@ function handleError(e, res) {
 
 // Start the server.
 app.listen(PORT, () => {
-  console.log(`App is running on port ${PORT}`);
+  
 });
