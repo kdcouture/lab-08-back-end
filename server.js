@@ -95,22 +95,21 @@ function searchWeather(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  const locationId = client.query(`SELECT id FROM locations WHERE search_query='${locationName.search_query}'`).then(sqlRes => {
+  const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
+
+  client.query(`SELECT id FROM locations WHERE search_query='${locationName.search_query}'`).then(sqlRes => {
     const qryString = `SELECT * FROM weathers WHERE location_id=${sqlRes.rows[0].id}`;
-    
-    const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
-    checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
+    checkForExistance(qryString, ifExistW, noExistW, sqlRes.rows[0].id, url, response);
   });
 
 }
 
 // check DB for existance
-function checkForExistance(qryString, doesExist, noExist, locationName, url, response) {
+function checkForExistance(qryString, doesExist, noExist, locationId, url, response) {
   client.query(qryString).then(sqlResult => {
     if (sqlResult.rowCount === 0) {
-      noExist(locationName, url, response);
+      noExist(locationId, url, response);
     } else {
-      
       doesExist(sqlResult, response);
     }
   });
@@ -128,7 +127,7 @@ function ifExistW(sqlResult, res) {
 }
 
 // not exists
-function noExistW(locationName, url, response) {
+function noExistW(locationId, url, response) {
   superagent
     .get(url)
     .then(result => {
@@ -146,7 +145,7 @@ function noExistW(locationName, url, response) {
           location_id
           ) VALUES ($1, $2, $3);
           `,
-          [tempWeather.forecast, tempWeather.time, locationName.id]
+          [tempWeather.forecast, tempWeather.time, locationId]
         );
 
         return tempWeather;
@@ -171,18 +170,12 @@ function getEventRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  console.log('\n========locationName=======\n: ', locationName);
-  let qStr = '';
-  if(locationName.id === undefined){
-    qStr = `SELECT * FROM events WHERE location_id=9999`; // ensures rows === 0
-  }
-  else {
-    qStr = `SELECT * FROM events WHERE location_id=${locationName.id}`;
-  }
-
   const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${EVENTBRITE_API_KEY}`;
 
-  checkForExistance(qStr, ifExistE, noExistE, locationName, url, response);
+  client.query(`SELECT id FROM locations WHERE search_query='${locationName.search_query}'`).then(sqlRes => {
+    const qStr = `SELECT * FROM events WHERE location_id=${sqlRes.rows[0].id}`;
+    checkForExistance(qStr, ifExistE, noExistE, sqlRes.rows[0].id, url, response);
+  });
 }
 
 // does exist (weather)
@@ -197,7 +190,7 @@ function ifExistE(sqlResult, res) {
 }
 
 // not exists
-function noExistE(locationName, url, response) {
+function noExistE(locationId, url, response) {
   superagent
     .get(url)
     .then(result => {
@@ -217,7 +210,7 @@ function noExistE(locationName, url, response) {
           location_id
           ) VALUES ($1, $2, $3, $4, $5);
           `,
-          [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationName.id]
+          [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationId]
           );
 
         return tempEvent;
