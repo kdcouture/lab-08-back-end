@@ -160,10 +160,10 @@ function noExistW(locationName, url, response) {
 
 //EventBrite Constructor Start
 function Event(link, name, time, summary) {
-  (this.link = link), 
-  (this.name = name), 
-  (this.event_date = time),
-  (this.summary = summary)
+  (this.link = link); 
+  (this.name = name); 
+  (this.event_date = new Date(time).toDateString());
+  (this.summary = summary);
 }
 
 function getEventRoute(request, response) {
@@ -185,7 +185,7 @@ function ifExistE(sqlResult, res) {
   let eventArr = [];
 
   sqlResult.rows.forEach(ele => {
-    return tempEvent = new Event(ele.link, ele.name, ele.event_date, ele.summary);
+    eventArr.push(new Event(ele.link, ele.name, ele.event_date, ele.summary));
   });
   res.send(eventArr);
 }
@@ -196,33 +196,29 @@ function noExistE(locationName, url, response) {
     .get(url)
     .then(result => {
       //shape data
-      const eventData = result.body;
-      let res = eventData.map(element => {
-        console.log('------element: ', element);
-        // // Fails
-        // // console.log('element: ', element);
-        // let tempEvent = new Event(element.url, element.name.text, element.start.local, element.summary);
-        // // make table row
-        // console.log('tempEvent: ', tempEvent);
-        // client.query(
-        //   `INSERT INTO events (
-        //   link,
-        //   name,
-        //   event_date,
-        //   summary,
-        //   location_id
-        //   ) VALUES ($1, $2, $3, $4, $5);
-        //   `,
-        //   [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationName.id]
-        //   );
+      const eventData = result.body.events;
 
-        // return tempEvent;
-        
+      let res = eventData.map(element => {
+
+        let tempEvent = new Event(element.url, element.name.text, element.start.local, element.summary);
+        // make table row
+        client.query(
+          `INSERT INTO events (
+          link,
+          name,
+          event_date,
+          summary,
+          location_id
+          ) VALUES ($1, $2, $3, $4, $5);
+          `,
+          [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationName.id]
+          );
+
+        return tempEvent;
       });
       response.send(res);
     })
     .catch(e => {
-
       response.status(500).send('oops');
     });
 }
@@ -234,5 +230,6 @@ function handleError(e, res) {
 
 // Start the server.
 app.listen(PORT, () => {
+  console.log('App listening on PORT: ', PORT);
   
 });
