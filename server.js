@@ -5,6 +5,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const superagent = require('superagent');
+const GEOCODE_API_KEY = process.env.GEOCODE_API_KEY;
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+const EVENTBRITE_API_KEY = process.env.EVENTBRITE_API_KEY;
+const pg = require('pg');
+const DATABASE_URL = process.env.DATABASE_URL;
+
+// postgress server setup (SQL DB)
+const client = new pg.Client(DATABASE_URL);
+client.connect();
+client.on('error', error => {
+  console.log(error);
+});
 
 // Globals
 const PORT = process.env.PORT || 3009;
@@ -34,15 +46,45 @@ function Location(query, res) {
 }
 
 function searchToLatLng(request, response) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${request.query.data}&key=${process.env.GEOCODE_API_KEY}`;
+  const locationName = request.query.data;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${locationName}&key=${GEOCODE_API_KEY}`;
 
-  return superagent
-    .get(url)
-    .then(res => {
-      response.send(new Location(request.query.data, res));
-    })
-    .catch(e => handleError(e));
-}
+  // if is in database get it from DB
+  client.query(`SELECT * FROM locations WHERE search_query=$1`, [locationName]).then(sqlResult => {
+    if (sqlResult.rowCount === 0) {
+      console.log('getting from Google');
+      // else do everything normal
+
+      superagent
+        .get(url)
+        .then(result => {
+
+          // TODO make this into an Ojbect constructor
+          let location = new Location(locationName, result);
+
+          // Save data to postgres
+          client.query(
+            `INSERT INTO locations (
+              search_query,
+              formatted_query,
+              latitude,
+              lognitude
+              ) VALUES ($1, $2, $3, $4)
+              `,
+            [location.search_query, location.formatted_query, location.latitude, location.longitude]
+          );
+          response.send(location);
+        })
+        .catch(e => {
+          console.error(e);
+          response.status(500).send('oops');
+        });
+    } else {
+      console.log('sending from DB: ');
+      response.send(sqlResult.rows[0]);
+    }
+  });
+
 
 //Weather Construtor Start
 function Day(dayObj) {
@@ -54,7 +96,7 @@ function Day(dayObj) {
 function getWeatherRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${lat},${lng}`;
+  const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
 
   return superagent
     .get(url)
@@ -76,7 +118,7 @@ function getEventRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
 
-  const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${process.env.EVENTBRITE_API_KEY}`;
+  const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${EVENTBRITE_API_KEY}`;
 
   return superagent
     .get(url)
