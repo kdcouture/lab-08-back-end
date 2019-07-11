@@ -42,7 +42,7 @@ app.use('*', (request, response) => {
 //Location Constructor Start
 function Location(query, res) {
   this.search_query = query;
-  (this.formatted_query = res.body.results[0].formatted_address), (this.latitude = res.body.results[0].geometry.location.lat), (this.longitude = res.body.results[0].geometry.location.lng);
+  (this.formatted_query = res.body.results[0].formatted_address); (this.latitude = res.body.results[0].geometry.location.lat);(this.longitude = res.body.results[0].geometry.location.lng);
 }
 
 function searchToLatLng(request, response) {
@@ -103,17 +103,6 @@ function searchWeather(request, response) {
   checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
 }
 
-// does exist (weather)
-function ifExistW(sqlResult, res) {
-  
-  let weatherArr = [];
-  // 
-  sqlResult.rows.forEach(day => {
-    weatherArr.push(new Day(day.forecast, day.time));
-  });
-  res.send(weatherArr);
-}
-
 // check DB for existance
 function checkForExistance(qryString, doesExist, noExist, locationName, url, response) {
   client.query(qryString).then(sqlResult => {
@@ -124,6 +113,17 @@ function checkForExistance(qryString, doesExist, noExist, locationName, url, res
       doesExist(sqlResult, response);
     }
   });
+}
+
+// does exist (weather)
+function ifExistW(sqlResult, res) {
+  
+  let weatherArr = [];
+  // 
+  sqlResult.rows.forEach(day => {
+    weatherArr.push(new Day(day.forecast, day.time));
+  });
+  res.send(weatherArr);
 }
 
 // not exists
@@ -159,25 +159,72 @@ function noExistW(locationName, url, response) {
 }
 
 //EventBrite Constructor Start
-function Event(eventObj) {
-  (this.link = eventObj.url), (this.name = eventObj.name.text), (this.event_date = new Date(eventObj.start.local).toDateString()), (this.summary = eventObj.summary);
+function Event(link, name, time, summary) {
+  (this.link = link), 
+  (this.name = name), 
+  (this.event_date = time),
+  (this.summary = summary)
 }
 
 function getEventRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
+  const locationName = request.query.data;
+  console.log('locationName: ', locationName.id);
+
+  const qStr = `SELECT * FROM events WHERE location_id=${locationName.id}`;
 
   const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${EVENTBRITE_API_KEY}`;
 
-  return superagent
+  checkForExistance(qStr, ifExistE, noExistE, locationName, url, response);
+}
+
+// does exist (weather)
+function ifExistE(sqlResult, res) {
+  
+  let eventArr = [];
+
+  sqlResult.rows.forEach(ele => {
+    return tempEvent = new Event(ele.link, ele.name, ele.event_date, ele.summary);
+  });
+  res.send(eventArr);
+}
+
+// not exists
+function noExistE(locationName, url, response) {
+  superagent
     .get(url)
     .then(result => {
-      const eventSummaries = result.body.events.map(eve => {
-        return new Event(eve);
+      //shape data
+      const eventData = result.body;
+      let res = eventData.map(element => {
+        console.log('------element: ', element);
+        // // Fails
+        // // console.log('element: ', element);
+        // let tempEvent = new Event(element.url, element.name.text, element.start.local, element.summary);
+        // // make table row
+        // console.log('tempEvent: ', tempEvent);
+        // client.query(
+        //   `INSERT INTO events (
+        //   link,
+        //   name,
+        //   event_date,
+        //   summary,
+        //   location_id
+        //   ) VALUES ($1, $2, $3, $4, $5);
+        //   `,
+        //   [tempEvent.link, tempEvent.name, tempEvent.event_date, tempEvent.summary, locationName.id]
+        //   );
+
+        // return tempEvent;
+        
       });
-      response.send(eventSummaries);
+      response.send(res);
     })
-    .catch(e => handleError(e, response));
+    .catch(e => {
+
+      response.status(500).send('oops');
+    });
 }
 
 //Error handling
