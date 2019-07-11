@@ -76,7 +76,6 @@ function searchToLatLng(request, response) {
           response.send(location);
         })
         .catch(e => {
-          
           response.status(500).send('oops');
         });
     } else {
@@ -96,11 +95,13 @@ function searchWeather(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  const qryString = `SELECT * FROM weathers WHERE location_id=${locationName.id}`;
-  
-  const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
+  const locationId = client.query(`SELECT id FROM locations WHERE search_query='${locationName.search_query}'`).then(sqlRes => {
+    const qryString = `SELECT * FROM weathers WHERE location_id=${sqlRes.rows[0].id}`;
+    
+    const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
+    checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
+  });
 
-  checkForExistance(qryString, ifExistW, noExistW, locationName, url, response);
 }
 
 // check DB for existance
@@ -170,9 +171,14 @@ function getEventRoute(request, response) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
   const locationName = request.query.data;
-  console.log('locationName: ', locationName.id);
-
-  const qStr = `SELECT * FROM events WHERE location_id=${locationName.id}`;
+  console.log('\n========locationName=======\n: ', locationName);
+  let qStr = '';
+  if(locationName.id === undefined){
+    qStr = `SELECT * FROM events WHERE location_id=9999`; // ensures rows === 0
+  }
+  else {
+    qStr = `SELECT * FROM events WHERE location_id=${locationName.id}`;
+  }
 
   const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${EVENTBRITE_API_KEY}`;
 
