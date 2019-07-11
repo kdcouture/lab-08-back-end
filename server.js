@@ -73,7 +73,10 @@ function Event(eventObj) {
 }
 
 function getEventRoute(request, response) {
-  const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${request.query.data.longitude}&location.latitude=${request.query.data.latitude}&expand=venue&token=${process.env.EVENTBRITE_API_KEY}`;
+  const lat = request.query.data.latitude;
+  const lng = request.query.data.longitude;
+
+  const url = `https://www.eventbriteapi.com/v3/events/search/?location.longitude=${lng}&location.latitude=${lat}&expand=venue&token=${process.env.EVENTBRITE_API_KEY}`;
 
   return superagent
     .get(url)
