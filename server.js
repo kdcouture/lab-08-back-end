@@ -58,7 +58,6 @@ function searchToLatLng(request, response) {
       superagent
         .get(url)
         .then(result => {
-
           // TODO make this into an Ojbect constructor
           let location = new Location(locationName, result);
 
@@ -84,7 +83,7 @@ function searchToLatLng(request, response) {
       response.send(sqlResult.rows[0]);
     }
   });
-
+}
 
 //Weather Construtor Start
 function Day(dayObj) {
