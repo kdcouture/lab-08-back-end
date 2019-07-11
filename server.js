@@ -52,7 +52,9 @@ function Day(dayObj) {
 }
 
 function getWeatherRoute(request, response) {
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
+  const lat = request.query.data.latitude;
+  const lng = request.query.data.longitude;
+  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${lat},${lng}`;
 
   return superagent
     .get(url)
