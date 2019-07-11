@@ -29,7 +29,7 @@ app.use(cors());
 app.get('/location', searchToLatLng);
 
 // Weather Route
-app.get('/weather', getWeatherRoute);
+app.get('/weather', searchWeather);
 
 //EventBrite Route
 app.get('/events', getEventRoute);
@@ -68,7 +68,7 @@ function searchToLatLng(request, response) {
               search_query,
               formatted_query,
               latitude,
-              lognitude
+              longitude
               ) VALUES ($1, $2, $3, $4)
               `,
             [location.search_query, location.formatted_query, location.latitude, location.longitude]
@@ -92,21 +92,65 @@ function Day(dayObj) {
   let time = new Date(dayObj.time * 1000).toDateString();
   this.time = time;
 }
-
-function getWeatherRoute(request, response) {
+// =============================
+function searchWeather(request) {
   const lat = request.query.data.latitude;
   const lng = request.query.data.longitude;
+  const locationName = request.query.data;
+  const qryString = `SELECT * FROM weathers`;
   const url = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${lat},${lng}`;
 
-  return superagent
+  checkForExistance(qryString, ifExist, noExistW, locationName, url);
+}
+
+// does exist
+function ifExist(sqlResult) {
+  res.send(sqlResult.rows[0]);
+}
+
+// check DB for existance
+function checkForExistance(qryString, doesExist, noExist, locationName, url) {
+  client.query(qryString).then(sqlResult => {
+    if (sqlResult.rowCount === 0) {
+      noExist(locationName, url);
+    } else {
+      doesExist(sqlResult);
+    }
+  });
+}
+
+// not exists
+function noExistW(locationName, url) {
+  superagent
     .get(url)
     .then(result => {
-      const weatherSummaries = result.body.daily.data.map(day => {
-        return new Day(day);
+      //shape data
+      const weatherData = result.body;
+      let res = weatherData.daily.data.map(element => {
+        let date = new Date(element.time * 1000).toDateString();
+        let tempWeather = new Day(element.summary, date);
+
+        let id = client.query(`SELECT id FROM locations WHERE search_query=$1`, [locationName]);
+
+        // make table
+        client.query(
+          `INSERT INTO weathers (
+          forcast,
+          time,
+          location_id
+          ) VALUES ($1, $2, $3)
+          `,
+          [tempWeather.forecast, tempWeather.time, id]
+        );
+
+        return tempWeather;
       });
-      response.send(weatherSummaries);
+      response.send(res);
     })
-    .catch(e => handleError(e, response));
+    .catch(e => {
+      console.error(e);
+      response.status(500).send('oops');
+    });
 }
 
 //EventBrite Constructor Start
