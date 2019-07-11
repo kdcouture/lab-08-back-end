@@ -48,6 +48,7 @@ function Location(query, res) {
 function searchToLatLng(request, response) {
   const locationName = request.query.data;
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${locationName}&key=${GEOCODE_API_KEY}`;
+  console.log('right here');
 
   // if is in database get it from DB
   client.query(`SELECT * FROM locations WHERE search_query=$1`, [locationName]).then(sqlResult => {
